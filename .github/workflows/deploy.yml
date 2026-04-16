@@ -18,34 +18,39 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Docker image
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
-          # 修复点 1：使用 DOCKER_USERNAME 拼接镜像名
-          tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:latest
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Deploy to Tencent Cloud Server
+      - name: Save image to tar
+        run: docker save ${{ env.IMAGE_NAME }}:latest | gzip > /tmp/image.tar.gz
+
+      - name: Copy image to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.TENCENT_HOST }}
+          username: ${{ secrets.TENCENT_USER }}
+          key: ${{ secrets.TENCENT_SSH_KEY }}
+          source: /tmp/image.tar.gz
+          target: /tmp
+          strip_components: 1
+
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1
         with:
-          # 注意：请确保你在 GitHub Secrets 里存的变量名与下面一致！
           host: ${{ secrets.TENCENT_HOST }}
           username: ${{ secrets.TENCENT_USER }}
           key: ${{ secrets.TENCENT_SSH_KEY }}
           script: |
-            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            sudo docker load < /tmp/image.tar.gz
             sudo docker stop ${{ env.CONTAINER_NAME }} || true
             sudo docker rm ${{ env.CONTAINER_NAME }} || true
             sudo docker run -d \
@@ -54,4 +59,5 @@ jobs:
               -p 3000:3000 \
               -e NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
               -e NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
-              ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+              ${{ env.IMAGE_NAME }}:latest
+            rm -f /tmp/image.tar.gz
