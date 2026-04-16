@@ -1,0 +1,39 @@
+{
+  "nav": {
+    "home": "首页",
+    "projects": "作品集",
+    "blog": "博客",
+    "guestbook": "留言板"
+  },
+  "home": {
+    "greeting": "你好，我是",
+    "name": "LSMX",
+    "tagline": "一个热爱创造的开发者",
+    "viewProjects": "查看作品",
+    "readBlog": "阅读博客"
+  },
+  "projects": {
+    "title": "作品集",
+    "description": "我的个人项目与实验作品"
+  },
+  "blog": {
+    "title": "博客",
+    "description": "关于技术、设计与生活的思考"
+  },
+  "guestbook": {
+    "title": "留言板",
+    "description": "留下你的足迹",
+    "namePlaceholder": "你的名字",
+    "messagePlaceholder": "说点什么...",
+    "submit": "留言",
+    "empty": "还没有留言，来做第一个吧！"
+  },
+  "footer": {
+    "builtWith": "用 ❤ 构建"
+  },
+  "common": {
+    "readMore": "阅读更多",
+    "backToList": "返回列表",
+    "loading": "加载中..."
+  }
+}

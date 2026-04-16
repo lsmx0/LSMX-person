@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #fefce8;
+    --foreground: #1e293b;
+    --sketch-stroke: #334155;
+    --sketch-fill: #fef9c3;
+    --sketch-accent1: #e11d48;
+    --sketch-accent2: #2563eb;
+    --sketch-accent3: #16a34a;
+    --card-bg: #fffef5;
+    --muted: #94a3b8;
+  }
+
+  .dark {
+    --background: #0f172a;
+    --foreground: #e2e8f0;
+    --sketch-stroke: #94a3b8;
+    --sketch-fill: #1e293b;
+    --sketch-accent1: #fb7185;
+    --sketch-accent2: #61dafb;
+    --sketch-accent3: #34d399;
+    --card-bg: #1e293b;
+    --muted: #475569;
+  }
+
+  body {
+    color: var(--foreground);
+    background: var(--background);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  * {
+    border-color: color-mix(in srgb, var(--sketch-stroke) 20%, transparent);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

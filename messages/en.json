@@ -1,0 +1,39 @@
+{
+  "nav": {
+    "home": "Home",
+    "projects": "Projects",
+    "blog": "Blog",
+    "guestbook": "Guestbook"
+  },
+  "home": {
+    "greeting": "Hi, I'm",
+    "name": "LSMX",
+    "tagline": "A developer who loves creating",
+    "viewProjects": "View Projects",
+    "readBlog": "Read Blog"
+  },
+  "projects": {
+    "title": "Projects",
+    "description": "My personal projects and experiments"
+  },
+  "blog": {
+    "title": "Blog",
+    "description": "Thoughts on tech, design and life"
+  },
+  "guestbook": {
+    "title": "Guestbook",
+    "description": "Leave your mark",
+    "namePlaceholder": "Your name",
+    "messagePlaceholder": "Say something...",
+    "submit": "Submit",
+    "empty": "No messages yet. Be the first!"
+  },
+  "footer": {
+    "builtWith": "Built with ❤"
+  },
+  "common": {
+    "readMore": "Read more",
+    "backToList": "Back to list",
+    "loading": "Loading..."
+  }
+}
