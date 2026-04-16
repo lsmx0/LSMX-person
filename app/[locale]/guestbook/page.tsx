@@ -37,7 +37,7 @@ export default function GuestbookPage() {
 
     // Optimistic update
     const optimisticMsg: GuestbookMessage = {
-      id: crypto.randomUUID(),
+      id: Math.random().toString(36).slice(2) + Date.now().toString(36),
       name: name.trim(),
       content: content.trim(),
       created_at: new Date().toISOString(),
