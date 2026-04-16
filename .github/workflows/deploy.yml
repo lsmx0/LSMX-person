@@ -31,7 +31,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Save image to tar
-        run: docker save ${{ env.IMAGE_NAME }}:latest | gzip > /tmp/image.tar.gz
+        run: docker save ${{ env.IMAGE_NAME }}:latest | gzip > image.tar.gz
 
       - name: Copy image to server
         uses: appleboy/scp-action@v0.1.7
@@ -39,9 +39,8 @@ jobs:
           host: ${{ secrets.TENCENT_HOST }}
           username: ${{ secrets.TENCENT_USER }}
           key: ${{ secrets.TENCENT_SSH_KEY }}
-          source: /tmp/image.tar.gz
+          source: image.tar.gz
           target: /tmp
-          strip_components: 1
 
       - name: Deploy on server
         uses: appleboy/ssh-action@v1
