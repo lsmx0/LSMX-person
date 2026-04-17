@@ -12,7 +12,7 @@ const navItems = [
   { href: "/", icon: Home, labelKey: "home" },
   { href: "/projects", icon: FolderOpen, labelKey: "projects" },
   { href: "/blog", icon: BookOpen, labelKey: "blog" },
-  { href: "/guestbook", icon: MessageCircle, labelKey: "guestbook" },
+  // { href: "/guestbook", icon: MessageCircle, labelKey: "guestbook" }, // 备案期间暂时隐藏
 ] as const;
 
 export default function Navbar() {
