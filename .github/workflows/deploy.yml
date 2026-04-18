@@ -21,19 +21,29 @@ jobs:
           command_timeout: 20m
           envs: IMAGE_NAME,CONTAINER_NAME
           script: |
-            export REPO_DIR=~/lsmx-person
+            REPO_DIR=/home/ubuntu/lsmx-person
             # Clone or pull latest code
             if [ -d "$REPO_DIR" ]; then
-              cd $REPO_DIR && git pull origin main
+              cd $REPO_DIR
+              git fetch origin main
+              git reset --hard origin/main
             else
               git clone https://github.com/lsmx0/LSMX-person.git $REPO_DIR
               cd $REPO_DIR
             fi
+            # Debug: verify source
+            echo "=== Current commit ==="
+            git log -1 --oneline
+            echo "=== Navbar guestbook line ==="
+            grep "guestbook" components/navbar.tsx
+            echo "=== Build context ==="
+            pwd
             # Build image on server
             sudo docker build --no-cache \
               --build-arg NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
               --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
-              -t $IMAGE_NAME:latest .
+              -f $REPO_DIR/Dockerfile \
+              -t $IMAGE_NAME:latest $REPO_DIR
             # Restart container
             sudo docker stop $CONTAINER_NAME || true
             sudo docker rm $CONTAINER_NAME || true
@@ -44,5 +54,8 @@ jobs:
               -e NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }} \
               -e NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }} \
               $IMAGE_NAME:latest
+            # Verify deployment
+            sleep 3
+            curl -s http://localhost:3000 | grep -o "留言板" || echo "=== OK: guestbook hidden ==="
             # Clean up old images
             sudo docker image prune -f
