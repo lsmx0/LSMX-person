@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { motion } from "framer-motion";
-import { Home, FolderOpen, BookOpen, MessageCircle, Menu, X } from "lucide-react";
+import { Home, FolderOpen, BookOpen, Menu, X } from "lucide-react";
 import { useState } from "react";
 import ThemeToggle from "./theme-toggle";
 import LocaleSwitcher from "./locale-switcher";
