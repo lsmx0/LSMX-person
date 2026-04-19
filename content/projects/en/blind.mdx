@@ -1,0 +1,457 @@
+---
+title: "Blind Path Navigation Android App"
+description: "Real-time blind path detection and voice navigation system based on YOLOv8-Seg deep learning model."
+date: "2026-01-31"
+tags: ["C/C++", "Android", "YOLOv8-Seg"]
+cover: "/images/projects/blind.png"
+---
+
+## Core Features
+
+### 1. Real-time Blind Path Detection
+- **YOLOv8-Seg Model Inference**: Runs the YOLOv8-Seg model on-device using ONNX Runtime.
+- **Instance Segmentation**: Accurately identifies blind path areas and generates pixel-level segmentation masks.
+- **Real-time Processing**: Achieves ~6-7 FPS inference speed, meeting real-time navigation requirements.
+
+### 2. Intelligent Navigation Algorithm
+- **Centerline Extraction**: Extracts the geometric centerline of the blind path from the segmentation mask.
+- **Linear Fitting**: Uses least squares to fit the centerline and calculate the path direction.
+- **Turn Decision**: Determines left turn, right turn, or straight based on the centerline angle.
+- **Offset Detection**: Detects whether the user has deviated from the center of the blind path.
+
+### 3. Voice Navigation
+- **Real-time Voice Broadcast**: Provides Chinese voice guidance using Android TTS.
+- **Smart Rate Limiting**: Does not repeat the same content within 2 seconds to avoid disturbance.
+- **Priority Decision**: Turn prompts take priority over offset prompts.
+
+### 4. Visual Debugging
+- **Real-time Overlay**: Displays detection results overlaid on the camera preview.
+- **Segmentation Mask Display**: Shows identified blind path area as a semi-transparent green overlay.
+- **Centroid Marker**: Red dot marking the centroid of the blind path.
+- **Center Reference Line**: White dashed line showing the center of the screen.
+- **Direction Arrow**: Yellow arrow indicating the direction of the blind path.
+- **Status Text**: Real-time display of offset and turn status.
+
+### 5. Dual Mode Support
+- **Image Detection Mode**: For debugging and testing, select an image for detection.
+- **Real-time Detection Mode**: Main function, real-time camera detection and navigation.
+
+## 🏗️ Technical Architecture
+
+### Tech Stack
+- **Development Language**: Kotlin
+- **UI Framework**: Jetpack Compose
+- **Camera Framework**: CameraX
+- **Deep Learning Inference**: ONNX Runtime
+- **Model**: YOLOv8-Seg (ONNX format)
+- **Speech Synthesis**: Android TextToSpeech
+
+### Core Components
+
+#### 1. YoloSegModel.kt
+**Function**: YOLOv8-Seg model inference engine
+
+**Key Implementation**:
+```kotlin
+// Model Loading
+- Load best.onnx model using ONNX Runtime
+- Configure optimization level to ALL_OPT
+
+// Image Preprocessing
+- Bitmap → FloatBuffer
+- RGB format, CHW layout
+- Normalize to [0, 1]
+- Resize to 640×640
+
+// Inference Execution
+- Input: [1, 3, 640, 640] float32 tensor
+- Outputs:
+  * det: [1, 8400, 37] - detection results (bbox + conf + mask_coeff)
+  * proto: [1, 32, 160, 160] - mask prototypes
+
+// Mask Generation
+- Formula: mask = sigmoid(mask_coeff × proto)
+- Bbox Cropping: Crop 160×160 mask to detection box region
+- Output: 640×640 segmentation mask
+```
+
+**Output Format Parsing**:
+- Each detection: 37 features
+  - [0-3]: bbox coordinates (cx, cy, w, h)
+  - [4]: confidence
+  - [5-36]: 32-dimensional mask coefficients
+
+#### 2. CameraManager.kt
+**Function**: Camera management and image capture
+
+**Key Implementation**:
+```kotlin
+// CameraX Configuration
+- Preview: Real-time preview
+- ImageAnalysis: Image analysis (inference)
+- Target resolution: 1280×720
+- Target aspect ratio: 4:3
+
+// Performance Control
+- Single-thread inference lock: avoid frame stacking
+- Time interval limit: one inference per 150ms (~6-7 FPS)
+- Backpressure strategy: KEEP_ONLY_LATEST
+
+// YUV to Bitmap Conversion (Critical Fix)
+- Correctly handle stride and pixel stride of YUV planes
+- Pixel-by-pixel copy to avoid data misalignment
+- Support image rotation correction
+```
+
+**YUV Conversion Fix**:
+The original incorrect method caused images to appear as horizontal stripes. After the fix, each pixel position is correctly handled:
+```kotlin
+// Incorrect method (direct buffer copy)
+yBuffer.get(nv21, 0, ySize)  // ❌
+
+// Correct method (pixel-by-pixel copy with stride)
+for (row in 0 until height) {
+    for (col in 0 until width) {
+        nv21[pos++] = yBuffer.get(row * yRowStride + col * yPixelStride)  // ✅
+    }
+}
+```
+
+#### 3. BlindPathGuide.kt
+**Function**: Blind path navigation algorithm and voice broadcast
+
+**Core Algorithms**:
+
+##### 3.1 Centerline Extraction
+```kotlin
+Method:
+1. Segment the image into rows (every 20 rows)
+2. Scan each row to find the left and right boundaries of foreground pixels
+3. Calculate center point: centerX = (minX + maxX) / 2
+4. Obtain list of centerline points: [(x1, y1), (x2, y2), ...]
+```
+
+##### 3.2 Linear Fitting
+```kotlin
+Method: Least squares fitting of line x = a * y + b
+- a: slope (indicates tilt of the blind path)
+- b: intercept (indicates position of the blind path)
+
+Formula:
+denominator = n * sumYY - sumY * sumY
+a = (n * sumXY - sumX * sumY) / denominator
+b = (sumX * sumYY - sumY * sumXY) / denominator
+```
+
+##### 3.3 Turn Decision
+```kotlin
+Method: Calculate angle from slope
+angle = atan(slope) * 180 / π
+
+Decision Rules:
+- angle > 10°  → turn left
+- angle < -10° → turn right
+- otherwise    → go straight
+
+Angle Interpretation:
+- 0° = vertical upward (straight)
+- Positive = tilting right (turn left)
+- Negative = tilting left (turn right)
+```
+
+##### 3.4 Offset Detection
+```kotlin
+Method: Calculate centerline position at the middle of the frame
+midY = imageHeight / 2
+midX = slope * midY + intercept
+offset = midX - centerX
+
+Decision Rules:
+- offset < -15% of frame width → left deviation
+- offset > +15% of frame width → right deviation
+- otherwise                     → centered
+```
+
+##### 3.5 Decision Fusion
+```kotlin
+Priority:
+1. Turn prompt (turn left / turn right)
+2. Offset prompt (left deviation / right deviation)
+3. No prompt (maintain current direction)
+
+Voice Mapping:
+- turn left → "Turn left ahead"
+- turn right → "Turn right ahead"
+- left deviation → "Adjust right"
+- right deviation → "Adjust left"
+```
+
+##### 3.6 Voice Broadcast
+```kotlin
+Features:
+- Uses Android TTS (Chinese)
+- Rate limiting: same content not repeated within 2 seconds
+- Queue mode: QUEUE_FLUSH (immediate broadcast)
+```
+
+#### 4. DebugOverlayView.kt
+**Function**: Visual debugging interface
+
+**Drawing Content**:
+```kotlin
+1. Segmentation Mask
+   - Semi-transparent green (alpha=80)
+   - Downsampled drawing (step=4) for performance
+   - Draw only foreground pixels (> 0.5)
+
+2. Centroid Marker
+   - Red dot (radius 15px)
+   - Outline stroke (radius 25px)
+
+3. Center Reference Line
+   - White dashed line
+   - Vertically centered
+
+4. PCA Direction Arrow
+   - Yellow arrow (length 150px)
+   - Starts from centroid
+   - Points to blind path direction
+
+5. Status Text
+   - Offset status (left/centered/right)
+   - Turn status (left/straight/right)
+   - PCA angle value
+   - With semi-transparent black background
+```
+
+#### 5. MainActivity.kt
+**Function**: Main UI and mode switching
+
+**UI Structure**:
+```kotlin
+TabRow (Mode Switch)
+├── Image Detection
+│   ├── Image picker
+│   ├── Confidence threshold slider
+│   ├── Voice navigation toggle
+│   ├── Original image display
+│   ├── Segmentation result display
+│   └── Navigation debug info
+│
+└── Real-time Detection
+    ├── Camera preview (PreviewView)
+    ├── Visual overlay (DebugOverlayView)
+    ├── Control buttons (start/stop)
+    ├── Overlay toggle
+    └── Performance statistics
+```
+
+## 📊 Data Flow
+
+### Complete Call Chain
+
+```
+Camera Frame (ImageProxy)
+    ↓
+YUV → Bitmap Conversion (CameraManager)
+    ↓
+YOLO Inference (YoloSegModel)
+    ↓
+Mask Generation (640×640 FloatArray)
+    ↓
+┌─────────────────┬─────────────────┐
+│                 │                 │
+Navigation Analysis    Visual Update
+(BlindPathGuide)       (DebugOverlayView)
+│                 │
+├─ Centerline Extraction  ├─ Draw Mask
+├─ Linear Fitting         ├─ Draw Centroid
+├─ Turn Decision          ├─ Draw Direction Arrow
+├─ Offset Detection       └─ Draw Status Text
+├─ Decision Fusion
+└─ Voice Broadcast (TTS)
+```
+
+### Performance Metrics
+
+- **Inference Speed**: ~6-7 FPS
+- **Inference Latency**: 150-200ms per frame
+- **Processing Rate**: ~20-30% (with performance control)
+- **Memory Usage**: Model ~5MB, runtime ~50-100MB
+
+## 🚀 Usage Instructions
+
+### Requirements
+- Android 7.0 (API 24) or higher
+- Camera permission
+- Chinese TTS voice pack (optional)
+
+### Installation Steps
+1. Clone the project
+2. Open with Android Studio
+3. Place the trained `best.onnx` model into `app/src/main/assets/`
+4. Build and install on device
+
+### Usage Flow
+
+#### Image Detection Mode (Debug)
+1. Switch to the "Image Detection" tab
+2. Click "Select Image"
+3. Adjust confidence threshold (recommended 0.5)
+4. Click "Run Segmentation"
+5. View segmentation results and navigation info
+
+#### Real-time Detection Mode (Main Function)
+1. Switch to the "Real-time Detection" tab
+2. Grant camera permission
+3. Click "Start Detection"
+4. Point the camera at the blind path
+5. Listen to voice navigation guidance
+6. Optional: Enable "Show Overlay" to view the detection process
+
+### Debugging Tips
+
+#### View Logs
+Use Logcat to filter the following tags:
+```
+🎯 Centerline Analysis  - Centerline extraction and fitting results
+🔊 Voice Broadcast      - TTS status and broadcast information
+🔄 YUV Conversion       - Image conversion process
+✅/❌                  - Success/failure status
+```
+
+#### Common Issues
+
+**1. No target detected**
+- Lower confidence threshold (0.5 → 0.3)
+- Ensure sufficient lighting
+- Aim clearly at the blind path
+- Keep distance of 1-2 meters
+
+**2. No voice broadcast**
+- Check TTS initialization logs in Logcat
+- Verify Chinese voice pack is installed on device
+- Enable TTS function in settings
+
+**3. Abnormal image display**
+- Check if YUV conversion is correct
+- View saved camera frames
+- Confirm image rotation angle
+
+**4. Inaccurate turn decision**
+- Check centerline analysis logs in Logcat
+- Examine fitted slope and angle values
+- Adjust `turnAngleThreshold` parameter
+
+## 📁 Project Structure
+
+```
+app/src/main/
+├── assets/
+│   └── best.onnx                    # YOLOv8-Seg model
+├── java/com/example/myapplication/
+│   ├── MainActivity.kt              # Main UI
+│   ├── YoloSegModel.kt              # Model inference
+│   ├── CameraManager.kt             # Camera management
+│   ├── BlindPathGuide.kt            # Navigation algorithm
+│   ├── DebugOverlayView.kt          # Visual overlay
+│   └── ui/theme/                    # UI theme
+├── res/                             # Resource files
+└── AndroidManifest.xml              # App configuration
+```
+
+## 🔧 Configuration Parameters
+
+### YoloSegModel.kt
+```kotlin
+val confThreshold = 0.5f        # Confidence threshold
+val inputSize = 640             # Model input size
+val maskSize = 160              # Mask prototype size
+```
+
+### CameraManager.kt
+```kotlin
+val minProcessInterval = 150L   # Inference interval (ms)
+val targetResolution = Size(1280, 720)  # Camera resolution
+```
+
+### BlindPathGuide.kt
+```kotlin
+val offsetDeadZone = 0.15f      # Offset dead zone (15%)
+val turnAngleThreshold = 10f    # Turn angle threshold (degrees)
+val speakInterval = 2000L       # Broadcast interval (ms)
+val rowStep = 20                # Centerline sampling step
+```
+
+### DebugOverlayView.kt
+```kotlin
+val sampleStep = 4              # Mask drawing downsampling
+val maskAlpha = 80              # Mask transparency
+val lineLength = 150f           # Direction arrow length
+```
+
+## 🎯 Core Algorithm Advantages
+
+### Centerline Method vs PCA Method
+
+**Centerline Method** (currently used):
+- ✅ More accurate: directly extracts geometric features of the blind path
+- ✅ More stable: linear fitting smooths noise
+- ✅ More intuitive: clear meaning of angle and offset
+- ✅ More robust: has fallback mechanism
+
+**PCA Method** (deprecated):
+- ❌ Sensitive to noise
+- ❌ Ambiguous angle interpretation
+- ❌ Prone to misclassifying straight as turn
+
+## 📝 Development Log
+
+### Major Milestones
+
+1. **YOLOv8-Seg Model Integration**
+   - ONNX Runtime configuration
+   - Image preprocessing implementation
+   - Mask generation algorithm
+
+2. **YUV Conversion Fix**
+   - Discovered horizontal stripe issue
+   - Fixed stride handling
+   - Verified image quality
+
+3. **Navigation Algorithm Optimization**
+   - Migrated from PCA method to centerline method
+   - Adjusted threshold parameters
+   - Added debug logging
+
+4. **Visualization System**
+   - Implemented transparent overlay
+   - Added multiple visual elements
+   - Optimized drawing performance
+
+5. **Voice Navigation**
+   - TTS integration
+   - Rate limiting mechanism
+   - Decision fusion
+
+## 🤝 Contribution Guidelines
+
+Issues and Pull Requests are welcome!
+
+### Development Suggestions
+- Follow Kotlin coding conventions
+- Add necessary comments
+- Keep code concise
+- Test before submitting
+
+## 📄 License
+
+This project is for learning and research purposes only.
+
+## 👥 Author
+
+Lin Shui Meng Xi
+
+---
+
+**Last Updated**: 2026-01-31
