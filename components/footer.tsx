@@ -36,6 +36,14 @@ export default function Footer() {
         <p>
           © {year} LSMX · {t("builtWith")}
         </p>
+        <a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground transition-colors"
+        >
+          豫ICP备2026002727号-2
+        </a>
       </div>
     </footer>
   );
